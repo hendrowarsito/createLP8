@@ -1,16 +1,11 @@
-# This is a simplified modular foundation — the full Streamlit app should be built using this as backend logic
-# You still need to integrate this with Streamlit UI and Google Sheets/Drive setup
-
+import streamlit as st
 from datetime import datetime
-from typing import List, Dict
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import requests
-import os
 
-# --- 1. Extract GPS from image EXIF ---
+# --- 1. Extract GPS coordinates from photo EXIF ---
 def extract_gps_info(image_file):
-    """Extract GPS coordinates from an image's EXIF metadata."""
     try:
         image = Image.open(image_file)
         exif_data = image._getexif()
@@ -39,9 +34,8 @@ def extract_gps_info(image_file):
     except Exception:
         return None, None
 
-# --- 2. Reverse geocoding (lat/lon → address) ---
+# --- 2. Reverse geocode to address using OpenStreetMap ---
 def reverse_geocode(lat, lon):
-    """Use Nominatim to reverse geocode coordinates into an address."""
     try:
         url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
         headers = {'User-Agent': 'field-inspection-app'}
@@ -52,52 +46,47 @@ def reverse_geocode(lat, lon):
     except Exception:
         return ""
 
-# --- 3. Prepare row for Data Tanah ---
-def prepare_tanah_row(data: Dict):
-    return [
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        data["property_id"],
-        data["survey_date"],
-        data["surveyor"],
-        data["address"],
-        data["land_area"],
-        data["zoning"],
-        data["access"],
-        data["gps"][0],
-        data["gps"][1],
-        data["address_lookup"],
-        ", ".join(data["photo_links"]),
-        data["notes"]
-    ]
+# --- 3. Streamlit UI ---
+st.set_page_config(page_title="Form Data Tanah", layout="wide")
+st.title("📋 Formulir Data Tanah")
 
-# --- 4. Prepare rows for Data Bangunan ---
-def prepare_bangunan_rows(buildings: List[Dict]):
-    rows = []
-    for b in buildings:
-        rows.append([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            b["property_id"],
-            b["type"],
-            b["floor_area"],
-            b["floors"],
-            b["condition"],
-            b["notes"],
-            b["photo_link"]
-        ])
-    return rows
+with st.form("form_data_tanah"):
+    surveyor = st.text_input("Nama Surveyor")
+    property_id = st.text_input("Kode Properti")
+    survey_date = st.date_input("Tanggal Survei", value=datetime.today())
+    address = st.text_area("Alamat Properti")
+    land_area = st.number_input("Luas Tanah (m²)", min_value=0.0)
+    zoning = st.selectbox("Peruntukan", ["Hunian", "Komersial", "Industri", "Lainnya"])
+    access = st.selectbox("Akses", ["Jalan Utama", "Gang", "Pribadi", "Lainnya"])
+    notes = st.text_area("Catatan Tambahan")
+    photo = st.file_uploader("Unggah Foto Properti", type=["jpg", "jpeg", "png"])
 
-# --- 5. Prepare rows for Data Pembanding ---
-def prepare_pembanding_rows(offers: List[Dict]):
-    rows = []
-    for p in offers:
-        rows.append([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            p["property_id"],
-            p["type"],
-            p["description"],
-            p["price"],
-            p["source"],
-            p["contact"],
-            p["photo_link"]
-        ])
-    return rows
+    submitted = st.form_submit_button("✅ Kirim Data")
+
+    if submitted:
+        gps = ("", "")
+        address_lookup = ""
+        photo_links = []
+
+        if photo:
+            gps = extract_gps_info(photo)
+            if gps[0] and gps[1]:
+                address_lookup = reverse_geocode(gps[0], gps[1])
+            photo_links.append(photo.name)
+
+        data_row = {
+            "property_id": property_id,
+            "survey_date": survey_date.strftime("%Y-%m-%d"),
+            "surveyor": surveyor,
+            "address": address,
+            "land_area": land_area,
+            "zoning": zoning,
+            "access": access,
+            "gps": gps,
+            "address_lookup": address_lookup,
+            "photo_links": photo_links,
+            "notes": notes
+        }
+
+        st.success("✅ Data berhasil diproses!")
+        st.json(data_row)
