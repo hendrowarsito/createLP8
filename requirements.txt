@@ -1,4 +1,5 @@
-streamlit>=1.46.0
-pandas
+streamlit
 streamlit-folium
 folium
+pandas
+requests
