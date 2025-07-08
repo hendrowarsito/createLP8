@@ -1,9 +1,19 @@
 import streamlit as st
 import pandas as pd
+import requests
 from datetime import datetime
 from streamlit_folium import st_folium
 import folium
-import requests
+import gspread
+from google.oauth2.service_account import Credentials
+
+# === KONFIG GOOGLE SHEET ===
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1imGyzAXvznWgw5Ph8EyyIuFPEdZziv7TBJqjXwrzZ5M/edit"
+CREDS_FILE = "credentials.json"
+scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_url(SHEET_URL).sheet1
 
 def reverse_geocode(lat, lon):
     try:
@@ -11,53 +21,88 @@ def reverse_geocode(lat, lon):
         headers = {"User-Agent": "streamlit-inspection-app"}
         response = requests.get(url, headers=headers)
         data = response.json()
-        return data.get("display_name", "Alamat tidak ditemukan")
+        address = data.get("address", {})
+        return {
+            "alamat": data.get("display_name", "Alamat tidak ditemukan"),
+            "desa": address.get("village") or address.get("hamlet") or "",
+            "kecamatan": address.get("suburb") or address.get("district") or "",
+            "kabupaten": address.get("city") or address.get("county") or "",
+            "provinsi": address.get("state") or ""
+        }
     except:
-        return "Gagal mengambil alamat"
+        return {"alamat": "Gagal mengambil alamat", "desa": "", "kecamatan": "", "kabupaten": "", "provinsi": ""}
 
+# === AMBIL NOMOR PROPOSAL ===
+def ambil_data_proposal():
+    rows = sheet.get_all_records()
+    opsi = {row['Nomor Proposal']: row['Nama Perusahaan'] for row in rows if 'Nomor Proposal' in row and 'Nama Perusahaan' in row}
+    return opsi
+
+# === STREAMLIT APP ===
 st.set_page_config(page_title="Form Inspeksi Properti", layout="wide")
-st.title("📋 Form Inspeksi Properti dengan Lokasi Interaktif & Alamat Otomatis")
 
-with st.form("form_inspeksi", clear_on_submit=False, height=500):
-    col1, col2 = st.columns(2)
-    with col1:
-        nama_penilai = st.text_input("Nama Penilai")
-        tanggal = st.date_input("Tanggal Inspeksi", value=datetime.today())
-        alamat_manual = st.text_area("Alamat Properti (bisa kosong, akan diisi otomatis jika titik dipilih)")
+menu = st.sidebar.radio("Navigasi", ["📋 Form Inspeksi", "📊 Data Google Sheet"])
 
-    with col2:
-        luas_tanah = st.number_input("Luas Tanah (m²)", min_value=0.0)
-        default_lat = -6.200000
-        default_lon = 106.816666
+if menu == "📋 Form Inspeksi":
+    st.title("📋 Form Inspeksi Properti dengan Lokasi Interaktif & Alamat Otomatis")
 
-        st.markdown("### 📍 Klik di peta untuk memilih koordinat")
-        m = folium.Map(location=[default_lat, default_lon], zoom_start=12)
-        m.add_child(folium.LatLngPopup())
-        output = st_folium(m, width=700, height=400)
+    opsi_proposal = ambil_data_proposal()
+    nomor_pilihan = st.selectbox("Pilih Nomor Proposal", list(opsi_proposal.keys()))
+    nama_perusahaan = opsi_proposal.get(nomor_pilihan, "")
+    st.markdown(f"**🏢 Nama Perusahaan:** {nama_perusahaan}")
 
-        lat = output["last_clicked"]["lat"] if output["last_clicked"] else default_lat
-        lon = output["last_clicked"]["lng"] if output["last_clicked"] else default_lon
+    with st.form("form_inspeksi", clear_on_submit=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            nama_penilai = st.text_input("Nama Penilai")
+            tanggal = st.date_input("Tanggal Inspeksi", value=datetime.today())
+            alamat_manual = st.text_area("Alamat Manual (boleh kosong)")
 
-        st.write(f"🧭 Koordinat yang dipilih: **{lat:.6f}, {lon:.6f}**")
+        with col2:
+            luas_tanah = st.number_input("Luas Tanah (m²)", min_value=0.0)
+            default_lat = -6.200000
+            default_lon = 106.816666
 
-        alamat_otomatis = reverse_geocode(lat, lon)
-        st.write(f"📌 Alamat dari koordinat: `{alamat_otomatis}`")
+            st.markdown("### 📍 Klik di peta untuk memilih koordinat")
+            m = folium.Map(location=[default_lat, default_lon], zoom_start=12)
+            m.add_child(folium.LatLngPopup())
+            output = st_folium(m, width=700, height=400)
 
-    submitted = st.form_submit_button("✅ Simpan")
+            lat = output["last_clicked"]["lat"] if output["last_clicked"] else default_lat
+            lon = output["last_clicked"]["lng"] if output["last_clicked"] else default_lon
 
-if submitted:
-    lokasi_df = pd.DataFrame({"lat": [lat], "lon": [lon]})
-    st.success("✅ Data berhasil disimpan!")
+            geo_data = reverse_geocode(lat, lon)
 
-    st.subheader("📄 Ringkasan Data")
-    st.write({
-        "Nama Penilai": nama_penilai,
-        "Tanggal": tanggal,
-        "Alamat": alamat_manual if alamat_manual else alamat_otomatis,
-        "Luas Tanah": luas_tanah,
-        "Latitude": lat,
-        "Longitude": lon
-    })
+            st.write(f"🧭 Koordinat: **{lat:.6f}, {lon:.6f}**")
+            st.write(f"📌 Alamat: `{geo_data['alamat']}`")
 
-    st.subheader("📍 Lokasi Properti")
-    st.map(lokasi_df)
+        submitted = st.form_submit_button("✅ Simpan")
+
+    if submitted:
+        lokasi_df = pd.DataFrame({"lat": [lat], "lon": [lon]})
+        st.success("✅ Data berhasil disimpan!")
+
+        st.subheader("📄 Ringkasan Data")
+        st.write({
+            "Nomor Proposal": nomor_pilihan,
+            "Nama Perusahaan": nama_perusahaan,
+            "Nama Penilai": nama_penilai,
+            "Tanggal": tanggal,
+            "Alamat Manual": alamat_manual if alamat_manual else geo_data['alamat'],
+            "Luas Tanah": luas_tanah,
+            "Latitude": lat,
+            "Longitude": lon,
+            "Desa": geo_data['desa'],
+            "Kecamatan": geo_data['kecamatan'],
+            "Kabupaten": geo_data['kabupaten'],
+            "Provinsi": geo_data['provinsi']
+        })
+
+        st.subheader("📍 Lokasi Properti")
+        st.map(lokasi_df)
+
+elif menu == "📊 Data Google Sheet":
+    st.title("📊 Data Terakhir dari Google Sheet")
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    st.dataframe(df.tail(10), use_container_width=True)
