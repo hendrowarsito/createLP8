@@ -1,5 +1,8 @@
 streamlit
+streamlit_folium
 gspread
 google-auth
-pandas
 requests
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
