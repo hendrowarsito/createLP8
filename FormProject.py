@@ -6,14 +6,13 @@ from streamlit_folium import st_folium
 import folium
 import gspread
 from google.oauth2.service_account import Credentials
+import json
 
 # === KONFIG GOOGLE SHEET ===
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1imGyzAXvznWgw5Ph8EyyIuFPEdZziv7TBJqjXwrzZ5M/edit"
-CREDS_FILE = "credentials.json"
-scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-creds = Credentials.from_service_account_file(CREDS_FILE, scopes=scope)
+creds_dict = st.secrets["gspread"]
+creds = Credentials.from_service_account_info(creds_dict)
 client = gspread.authorize(creds)
-sheet = client.open_by_url(SHEET_URL).sheet1
+sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/...")
 
 def reverse_geocode(lat, lon):
     try:
