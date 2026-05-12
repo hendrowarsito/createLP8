@@ -368,3 +368,4 @@ try:
 except Exception as e:
     st.error(f"Gagal memuat data dari Google Sheet: {e}")
 ```
+
