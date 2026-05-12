@@ -14,9 +14,9 @@ from google.oauth2.service_account import Credentials
 # ============================================================
 
 st.set_page_config(
-page_title=“Form Inspeksi Properti”,
-page_icon=“🏠”,
-layout=“wide”
+page_title = “Form Inspeksi Properti”,
+page_icon = “🏠”,
+layout = “wide”
 )
 
 # ============================================================
