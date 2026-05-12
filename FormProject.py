@@ -14,9 +14,9 @@ from google.oauth2.service_account import Credentials
 # ============================================================
 
 st.set_page_config(
-page_title = “Form Inspeksi Properti”,
-page_icon = “🏠”,
-layout = “wide”
+page_title="Form Inspeksi Properti”,
+page_icon="🏠”,
+layout="wide”
 )
 
 # ============================================================
@@ -28,14 +28,14 @@ layout = “wide”
 @st.cache_resource
 def get_sheet():
 creds = Credentials.from_service_account_info(
-st.secrets[“gspread”],
+st.secrets["gspread”],
 scopes=[
-“https://spreadsheets.google.com/feeds”,
-“https://www.googleapis.com/auth/drive”
+"https://spreadsheets.google.com/feeds”,
+"https://www.googleapis.com/auth/drive”
 ]
 )
 client = gspread.authorize(creds)
-return client.open_by_url(“https://docs.google.com/spreadsheets/d/…”)
+return client.open_by_url("https://docs.google.com/spreadsheets/d/…”)
 
 # ============================================================
 
@@ -45,14 +45,14 @@ return client.open_by_url(“https://docs.google.com/spreadsheets/d/…”)
 
 @st.cache_data(ttl=300)
 def ambil_data_proposal():
-“”“Ambil daftar nomor proposal dari Google Sheet tab pertama.”””
+"”"Ambil daftar nomor proposal dari Google Sheet tab pertama.”””
 try:
 sheet = get_sheet()
 rows = sheet.get_all_records()
 opsi = {
-row[“Nomor Proposal”]: row[“Nama Perusahaan”]
+row["Nomor Proposal”]: row["Nama Perusahaan”]
 for row in rows
-if “Nomor Proposal” in row and “Nama Perusahaan” in row
+if "Nomor Proposal” in row and "Nama Perusahaan” in row
 }
 return opsi
 except Exception as e:
@@ -66,19 +66,19 @@ return {}
 # ============================================================
 
 def simpan_ke_sheet(data: dict) -> bool:
-“”“Simpan satu baris data ke worksheet ‘Inspeksi’. Return True jika berhasil.”””
+"”"Simpan satu baris data ke worksheet ‘Inspeksi’. Return True jika berhasil.”””
 try:
 sheet = get_sheet()
 try:
-ws = sheet.worksheet(“Inspeksi”)
+ws = sheet.worksheet("Inspeksi”)
 except gspread.WorksheetNotFound:
 # Buat worksheet baru jika belum ada
-ws = sheet.add_worksheet(title=“Inspeksi”, rows=“1000”, cols=“20”)
+ws = sheet.add_worksheet(title="Inspeksi”, rows="1000”, cols="20”)
 headers = [
-“Timestamp”, “Nomor Proposal”, “Nama Perusahaan”,
-“Nama Penilai”, “Tanggal Inspeksi”, “Alamat”,
-“Luas Tanah (m²)”, “Latitude”, “Longitude”,
-“Desa”, “Kecamatan”, “Kabupaten”, “Provinsi”, “Catatan”
+"Timestamp”, "Nomor Proposal”, "Nama Perusahaan”,
+"Nama Penilai”, "Tanggal Inspeksi”, "Alamat”,
+"Luas Tanah (m²)”, "Latitude”, "Longitude”,
+"Desa”, "Kecamatan”, "Kabupaten”, "Provinsi”, "Catatan”
 ]
 ws.append_row(headers)
 
@@ -114,26 +114,26 @@ except Exception as e:
 
 @st.cache_data(ttl=3600)
 def reverse_geocode(lat: float, lon: float) -> dict:
-“”“Konversi koordinat ke alamat menggunakan Nominatim OSM.”””
+"”"Konversi koordinat ke alamat menggunakan Nominatim OSM.”””
 try:
 url = (
 f”https://nominatim.openstreetmap.org/reverse”
 f”?format=json&lat={lat}&lon={lon}&zoom=18&addressdetails=1”
 )
-headers = {“User-Agent”: “srr-inspeksi-app/1.0”}
+headers = {"User-Agent”: "srr-inspeksi-app/1.0”}
 response = requests.get(url, headers=headers, timeout=10)
 response.raise_for_status()
 data = response.json()
-address = data.get(“address”, {})
+address = data.get("address”, {})
 return {
-“alamat”: data.get(“display_name”, “Alamat tidak ditemukan”),
-“desa”: address.get(“village”) or address.get(“hamlet”) or address.get(“neighbourhood”) or “”,
-“kecamatan”: address.get(“suburb”) or address.get(“district”) or “”,
-“kabupaten”: address.get(“city”) or address.get(“regency”) or address.get(“county”) or “”,
-“provinsi”: address.get(“state”) or “”,
+"alamat”: data.get("display_name”, "Alamat tidak ditemukan”),
+"desa”: address.get("village”) or address.get("hamlet”) or address.get("neighbourhood”) or "”,
+"kecamatan”: address.get("suburb”) or address.get("district”) or "”,
+"kabupaten”: address.get("city”) or address.get("regency”) or address.get("county”) or "”,
+"provinsi”: address.get("state”) or "”,
 }
 except requests.Timeout:
-st.warning(“Geocoding timeout. Coba klik ulang lokasi di peta.”)
+st.warning("Geocoding timeout. Coba klik ulang lokasi di peta.”)
 return _empty_geo()
 except requests.RequestException as e:
 st.warning(f”Geocoding gagal: {e}”)
@@ -143,7 +143,7 @@ st.warning(f”Error tidak terduga saat geocoding: {e}”)
 return _empty_geo()
 
 def _empty_geo() -> dict:
-return {“alamat”: “”, “desa”: “”, “kecamatan”: “”, “kabupaten”: “”, “provinsi”: “”}
+return {"alamat”: "”, "desa”: "”, "kecamatan”: "”, "kabupaten”: "”, "provinsi”: "”}
 
 # ============================================================
 
@@ -151,14 +151,14 @@ return {“alamat”: “”, “desa”: “”, “kecamatan”: “”, “ka
 
 # ============================================================
 
-if “lat” not in st.session_state:
-st.session_state[“lat”] = -6.200000
-if “lon” not in st.session_state:
-st.session_state[“lon”] = 106.816666
-if “geo_data” not in st.session_state:
-st.session_state[“geo_data”] = _empty_geo()
-if “form_submitted” not in st.session_state:
-st.session_state[“form_submitted”] = False
+if "lat” not in st.session_state:
+st.session_state["lat”] = -6.200000
+if "lon” not in st.session_state:
+st.session_state["lon”] = 106.816666
+if "geo_data” not in st.session_state:
+st.session_state["geo_data”] = _empty_geo()
+if "form_submitted” not in st.session_state:
+st.session_state["form_submitted”] = False
 
 # ============================================================
 
@@ -167,8 +167,8 @@ st.session_state[“form_submitted”] = False
 # ============================================================
 
 menu = st.sidebar.radio(
-“Navigasi”,
-[“📋 Form Inspeksi”, “📊 Data Google Sheet”],
+"Navigasi”,
+["📋 Form Inspeksi”, "📊 Data Google Sheet”],
 index=0
 )
 
@@ -178,9 +178,9 @@ index=0
 
 # ============================================================
 
-if menu == “📋 Form Inspeksi”:
-st.title(“📋 Form Inspeksi Properti”)
-st.caption(“Isi data inspeksi, klik lokasi di peta, lalu tekan Simpan.”)
+if menu == "📋 Form Inspeksi”:
+st.title("📋 Form Inspeksi Properti”)
+st.caption("Isi data inspeksi, klik lokasi di peta, lalu tekan Simpan.”)
 
 ```
 # --- Pilih Proposal ---
@@ -326,8 +326,8 @@ if submitted:
 
 # ============================================================
 
-elif menu == “📊 Data Google Sheet”:
-st.title(“📊 Data Inspeksi dari Google Sheet”)
+elif menu == "📊 Data Google Sheet”:
+st.title("📊 Data Inspeksi dari Google Sheet”)
 
 ```
 col_refresh, _ = st.columns([1, 5])
